@@ -43,8 +43,28 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 	if m.table.GetIsFilterInputFocused() {
+		if m.neutralSelection && keyMsg.String() == "esc" && m.table.GetCurrentFilter() != "" {
+			m.table = m.table.WithFilterInputValue("").StartFilterTyping()
+			return nil
+		}
 		var cmd tea.Cmd
 		m.table, cmd = m.table.Update(msg)
+		return cmd
+	}
+	// Workspace slash opens search without inserting a slash into the filter.
+	if m.neutralSelection && m.filterEnabled() && keyMsg.String() == "/" {
+		m.table = m.table.StartFilterTyping()
+		return nil
+	}
+	// Workspace printable input owns search before product or view actions.
+	if m.neutralSelection && keyMsg.Text != "" && keyMsg.Mod & ^tea.ModShift == 0 {
+		if !m.filterEnabled() {
+			// A lazy source cannot be searched locally. It still must not
+			// interpret workspace text as legacy actions.
+			return nil
+		}
+		var cmd tea.Cmd
+		m.table, cmd = m.table.StartFilterTyping().Update(msg)
 		return cmd
 	}
 	if m.secondaryFocus {
