@@ -502,6 +502,13 @@ func (m *Model) Update(msg tea.Msg) tea.Cmd {
 	if _, isKey := msg.(tea.KeyPressMsg); !isKey {
 		return m.broadcast(msg)
 	}
+	return m.UpdateFocused(msg)
+}
+
+// UpdateFocused delivers a local widget event to the retained focused block.
+// Embedding workspaces use it for mouse coordinates in an expanded result;
+// unlike Update's non-key path it never broadcasts input to other entries.
+func (m *Model) UpdateFocused(msg tea.Msg) tea.Cmd {
 	idx := m.entryIndexForStop(m.focusIndex)
 	if idx < 0 || m.entries[idx].Block == nil {
 		return nil

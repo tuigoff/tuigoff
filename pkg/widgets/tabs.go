@@ -24,6 +24,8 @@ type Tab struct {
 type TabsStyle struct {
 	// Workspace uses the opt-in shared underline grammar.
 	Workspace bool
+	// ChatFrame adds a second-row seam joining the active session to its frame.
+	ChatFrame bool
 	// Radio prefixes each tab with a filled circle when active, an empty one
 	// otherwise.
 	Radio bool
@@ -83,7 +85,8 @@ func (k TabsKeyMap) FullHelp() [][]key.Binding { return [][]key.Binding{k.ShortH
 // tabsCloseMark is the close mark of a closable tab.
 const tabsCloseMark = "×"
 
-// Tabs is a one-row strip of tab titles, optionally preceded by a label. It draws
+// Tabs is a strip of tab titles, optionally preceded by a label. ChatFrame adds
+// one seam row; other styles use one row. It draws
 // the strip only: the parent keeps the pages and shows the content of the active
 // tab itself, following TabChangedMsg. bubbles has no tab strip, so the rendering
 // is our own.
@@ -167,7 +170,7 @@ func (t *Tabs) SetActive(index int) {
 	}
 }
 
-// SetSize gives the strip its width; the height is always one row.
+// SetSize gives the strip its width; the style determines its row count.
 func (t *Tabs) SetSize(width, _ int) { t.width = max(width, 0) }
 
 // Focus makes the strip handle keys.
@@ -256,7 +259,7 @@ type tabSpan struct{ start, end int }
 func (t Tabs) text(i int) string {
 	tab := t.tabs[i]
 	text := " " + tab.Title + " "
-	if t.style.Workspace && i == t.active {
+	if t.style.Workspace && !t.style.ChatFrame && i == t.active {
 		text = "›" + tab.Title + " "
 	}
 	if t.style.Radio {
@@ -311,11 +314,26 @@ func (t Tabs) View() string {
 		sb.WriteString(t.tabStyle(i).Render(t.text(i)))
 	}
 	_, scroll := t.layout()
-	return Fit(ansi.Cut(sb.String(), scroll, scroll+t.width), t.width, 1)
+	row := Fit(ansi.Cut(sb.String(), scroll, scroll+t.width), t.width, 1)
+	if t.style.ChatFrame {
+		spans, _ := t.layout()
+		seam := make([]string, t.width)
+		for x := range seam {
+			seam[x] = theme.WorkspaceFrameRule("─")
+			if t.active >= 0 && x+scroll >= spans[t.active].start && x+scroll < spans[t.active].end {
+				seam[x] = theme.WorkspaceChatTabStyle(true, false).Render(" ")
+			}
+		}
+		row += "\n" + strings.Join(seam, "")
+	}
+	return row
 }
 
 // tabStyle is the style of tab i.
 func (t Tabs) tabStyle(i int) lipgloss.Style {
+	if t.style.ChatFrame {
+		return theme.WorkspaceChatTabStyle(i == t.active, t.focused)
+	}
 	if t.style.Workspace {
 		return theme.WorkspaceTabStyle(i == t.active, t.focused)
 	}
