@@ -22,6 +22,8 @@ type Tab struct {
 
 // TabsStyle selects how the tab strip is drawn; the theme supplies colours.
 type TabsStyle struct {
+	// Workspace uses the opt-in shared underline grammar.
+	Workspace bool
 	// Radio prefixes each tab with a filled circle when active, an empty one
 	// otherwise.
 	Radio bool
@@ -254,6 +256,9 @@ type tabSpan struct{ start, end int }
 func (t Tabs) text(i int) string {
 	tab := t.tabs[i]
 	text := " " + tab.Title + " "
+	if t.style.Workspace && i == t.active {
+		text = "›" + tab.Title + " "
+	}
 	if t.style.Radio {
 		glyph := "○"
 		if i == t.active {
@@ -311,6 +316,9 @@ func (t Tabs) View() string {
 
 // tabStyle is the style of tab i.
 func (t Tabs) tabStyle(i int) lipgloss.Style {
+	if t.style.Workspace {
+		return theme.WorkspaceTabStyle(i == t.active, t.focused)
+	}
 	if i != t.active {
 		style := lipgloss.NewStyle().Foreground(theme.MutedColor())
 		return style.Underline(t.style.Underscore)

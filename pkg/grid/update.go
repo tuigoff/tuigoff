@@ -79,6 +79,15 @@ func (m *Model) update(msg tea.Msg) tea.Cmd {
 			return cmd
 		}
 	}
+	if m.tabViewCycling && (keyMsg.String() == "tab" || keyMsg.String() == "shift+tab") {
+		delta := 1
+		if keyMsg.String() == "shift+tab" {
+			delta = -1
+		}
+		count := 1 + len(m.extraViews)
+		m.ShowView(View((int(m.view) + delta + count) % count))
+		return nil
+	}
 	if m.filterOnType && m.filterEnabled() && !m.secondaryFocus && keyMsg.Text != "" && keyMsg.Mod == 0 {
 		var cmd tea.Cmd
 		m.table, cmd = m.table.StartFilterTyping().Update(msg)

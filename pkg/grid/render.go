@@ -99,6 +99,9 @@ func (m *Model) headerLine(width int) string {
 // given width, plain (for measuring) and styled (the active view highlighted).
 func (m *Model) switcher(width int) (plain, styled string) {
 	labels := m.viewLabels(width)
+	if m.tabViewCycling {
+		return strings.Join(labels, " "), theme.WorkspaceTabs(labels, int(m.view), width, m.focused)
+	}
 	separator := " · "
 	if width < 42 {
 		separator = " "

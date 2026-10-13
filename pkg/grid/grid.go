@@ -355,6 +355,7 @@ type Model struct {
 	cellStyle             CellStyleFunc
 	frameless             bool
 	neutralSelection      bool
+	tabViewCycling        bool
 	workspaceFrameless    bool
 	workspaceFilterOnType bool
 	extraViews            []ExtraView
@@ -1273,3 +1274,7 @@ func (m *Model) SetRowSource(src RowSource, columns []Column) {
 	m.loadWindow()
 	m.rebuildTable()
 }
+
+// SetTabViewCycling opts into local forward/reverse view cycling. Filter input,
+// a secondary editor and the product key handler retain first ownership.
+func (m *Model) SetTabViewCycling(enabled bool) { m.tabViewCycling = enabled }
