@@ -136,6 +136,13 @@ func (m *Model) viewLabels(width int) []string {
 		names = append(names, v.Label)
 		shortNames = append(shortNames, v.ShortLabel)
 	}
+	label := func(i int, name string) string {
+		if m.neutralSelection {
+			// Workspace digits start search; they are not view shortcuts.
+			return name
+		}
+		return strconv.Itoa(i+1) + " " + name
+	}
 	shorten := func(n int) []string {
 		out := make([]string, len(names))
 		for i, name := range names {
@@ -143,19 +150,22 @@ func (m *Model) viewLabels(width int) []string {
 			if short == "" {
 				short = abbreviate(name, n)
 			}
-			out[i] = strconv.Itoa(i+1) + " " + short
+			out[i] = label(i, short)
 		}
 		return out
 	}
 	full := func() []string {
 		out := make([]string, len(names))
 		for i, name := range names {
-			out[i] = strconv.Itoa(i+1) + " " + name
+			out[i] = label(i, name)
 		}
 		return out
 	}
 	switch {
 	case width <= 24:
+		if m.neutralSelection {
+			return shorten(1)
+		}
 		out := make([]string, len(names))
 		for i := range names {
 			out[i] = strconv.Itoa(i + 1)
@@ -289,10 +299,14 @@ func (m *Model) chromeHeight() int {
 	if !m.frameless {
 		return 3
 	}
+	height := 2
 	if m.switcherShown() {
-		return 3
+		height++
 	}
-	return 2
+	if m.neutralSelection && m.title != "" {
+		height++
+	}
+	return height
 }
 
 // pageSize is the number of data rows one page holds: the height given to
@@ -323,6 +337,9 @@ func (m *Model) bare(content string) string {
 		content = stripHeaderSeparator(content)
 	}
 	var lines []string
+	if m.neutralSelection && m.title != "" {
+		lines = append(lines, padAnsiLine(lipgloss.NewStyle().Bold(true).Foreground(theme.AccentColor()).Render(sanitize(m.title)), width))
+	}
 	if m.switcherShown() {
 		_, styled := m.switcher(width)
 		lines = append(lines, padAnsiLine(styled, width))
@@ -409,7 +426,7 @@ func (m *Model) tableViewAt(width int) string {
 		// read: this table is rendered once, right here, and discarded —
 		// it is never separately navigated — so there is no "later" state
 		// for a dynamic read to need to catch up with.
-		return rowStyle(input.Index == highlighted, m.focused)
+		return m.rowStyle(input.Index == highlighted)
 	})
 	if filterText != "" {
 		// This throwaway copy's own filter focus doesn't matter — it's
@@ -611,4 +628,14 @@ func (m *Model) scrollbarLine(line, trackHeight int) string {
 		return selectedOutlineStyle().Render("│")
 	}
 	return lipgloss.NewStyle().Foreground(theme.MutedColor()).Render("│")
+}
+
+// rowStyle preserves the selected row as a neutral highlight when workspace
+// focus moves away; the workspace itself owns the only active marker.
+func (m *Model) rowStyle(highlighted bool) lipgloss.Style {
+	if !m.neutralSelection {
+		return rowStyle(highlighted, m.focused)
+	}
+	bg, fg := theme.NeutralSurfaceColors(highlighted)
+	return lipgloss.NewStyle().Background(bg).Foreground(fg).Bold(highlighted)
 }

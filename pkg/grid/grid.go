@@ -346,23 +346,26 @@ type Model struct {
 	cursor    int
 	seenWidth []int
 
-	id                 string
-	height             int
-	maxRowsSet         bool
-	fixedColumns       int // requested by WithFixedColumns; see fixed()
-	rowSelectOnly      bool
-	filterOnType       bool
-	cellStyle          CellStyleFunc
-	frameless          bool
-	extraViews         []ExtraView
-	layout             LayoutFunc
-	maxVisibleRows     int
-	keyHandler         KeyHandler
-	footerHook         FooterHook
-	style              Style
-	secondaryFocus     bool
-	filterDisabled     bool
-	viewSwitcherHidden bool
+	id                    string
+	height                int
+	maxRowsSet            bool
+	fixedColumns          int // requested by WithFixedColumns; see fixed()
+	rowSelectOnly         bool
+	filterOnType          bool
+	cellStyle             CellStyleFunc
+	frameless             bool
+	neutralSelection      bool
+	workspaceFrameless    bool
+	workspaceFilterOnType bool
+	extraViews            []ExtraView
+	layout                LayoutFunc
+	maxVisibleRows        int
+	keyHandler            KeyHandler
+	footerHook            FooterHook
+	style                 Style
+	secondaryFocus        bool
+	filterDisabled        bool
+	viewSwitcherHidden    bool
 }
 
 // New builds a grid from columns and rows. Row order is preserved until the
@@ -444,7 +447,7 @@ func (m *Model) rebuildTable() {
 		// Update, without a rebuildTable call. Only valid for the table
 		// this Model actually keeps navigating — see tableViewAt for the
 		// one-shot alternative a throwaway render-at-another-width needs.
-		return rowStyle(input.Index == m.table.GetHighlightedRowIndex(), m.focused)
+		return m.rowStyle(input.Index == m.table.GetHighlightedRowIndex())
 	})
 	if filterText != "" {
 		newTable = newTable.WithFilterInputValue(filterText)
@@ -456,6 +459,11 @@ func (m *Model) rebuildTable() {
 			// key handling instead of extending the filter text.
 			newTable = newTable.StartFilterTyping()
 		}
+	}
+	// Empty active workspace searches are an input layer too. Preserve that
+	// layer across focus/size changes so the next Esc leaves search only.
+	if m.neutralSelection && filterFocused && filterText == "" {
+		newTable = newTable.StartFilterTyping()
 	}
 	if m.count() > 0 {
 		pos := m.cursor - m.top // a RowSource grid: the window is never filtered
@@ -505,6 +513,9 @@ func (m *Model) buildTable(width int, rowStyleFunc func(table.RowStyleFuncInput)
 				// The product's style wins where it sets a property; the
 				// column's alignment and selected-column emphasis fill the rest.
 				style = m.cellStyle(srcRows[i], c, srcRows[i].value(c)).Inherit(style)
+			}
+			if m.neutralSelection && m.columnSelected(c) {
+				style = workspaceColumnStyle().Inherit(style)
 			}
 			data[columnKey(c)] = table.NewStyledCell(value, style)
 		}
@@ -1145,6 +1156,9 @@ func (m *Model) Sort(column int) {
 
 func (m *Model) header(column int) string {
 	name := m.columns[column].Name
+	if m.neutralSelection && m.columnSelected(column) {
+		name = workspaceColumnStyle().Render(name)
+	}
 	if m.sortColumn != column {
 		return name
 	}
@@ -1222,7 +1236,9 @@ func (m *Model) columnMaxWidth(c int) int {
 
 // filterEnabled reports whether the "/" row filter exists: not disabled, and
 // only for a slice-backed grid (a RowSource cannot be filtered by the grid).
-func (m *Model) filterEnabled() bool { return !m.filterDisabled && m.src == nil }
+func (m *Model) filterEnabled() bool {
+	return (!m.filterDisabled || m.neutralSelection) && m.src == nil
+}
 
 // resetData clears everything derived from the previous rows: sort state,
 // highlight, filter, horizontal scroll and the lazy page. The selected column

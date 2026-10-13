@@ -163,6 +163,44 @@ type Model struct {
 	// entries, in transcript order), or -1 when nothing is focused.
 	focusIndex       int
 	markdownRenderer MarkdownRenderer
+	neutralWorkspace bool
+}
+
+// SetNeutralWorkspace opts this transcript into neutral workspace cards.
+func (m *Model) SetNeutralWorkspace(enabled bool) {
+	m.neutralWorkspace = enabled
+	for i := range m.entries {
+		m.entries[i].renderValid = false
+	}
+	m.Rebuild(false)
+}
+
+func (m *Model) card(role theme.Role, header, body string, width int, focused bool) string {
+	if m.neutralWorkspace {
+		return theme.NeutralCard(role, header, body, width, focused)
+	}
+	return theme.Card(role, header, body, width, focused)
+}
+
+// SelectedRef returns a transcript stop's entity independently of keyboard focus.
+func (m *Model) SelectedRef(stop int) *entity.Ref {
+	i := m.entryIndexForStop(stop)
+	if i < 0 || m.entries[i].Block == nil {
+		return nil
+	}
+	if b, ok := m.entries[i].Block.(EntityBlock); ok {
+		return b.Current()
+	}
+	return nil
+}
+
+// BlockAt returns the same block instance held at a focus stop.
+func (m *Model) BlockAt(stop int) Block {
+	i := m.entryIndexForStop(stop)
+	if i < 0 {
+		return nil
+	}
+	return m.entries[i].Block
 }
 
 // New returns an empty, unfocused transcript.
@@ -507,6 +545,14 @@ func (m *Model) broadcast(msg tea.Msg) tea.Cmd {
 func (m *Model) ScrollUp(lines int)   { m.viewport.SetYOffset(max(0, m.viewport.YOffset()-lines)) }
 func (m *Model) ScrollDown(lines int) { m.viewport.SetYOffset(m.viewport.YOffset() + lines) }
 
+// ScrollOffset returns the visible history's line offset for an embedding
+// workspace that temporarily replaces the history viewport.
+func (m *Model) ScrollOffset() int { return m.viewport.YOffset() }
+
+// RestoreScrollOffset restores a saved position after the viewport's original
+// layout has been restored. The viewport clamps offsets to its current content.
+func (m *Model) RestoreScrollOffset(offset int) { m.viewport.SetYOffset(max(0, offset)) }
+
 // Rebuild re-renders every entry into the viewport's content and, when an
 // entry is focused, scrolls it into view (ensureBlockVisible). It mirrors
 // DataTug's rebuildHistory/ensureBlockVisible in pkg/chat/ui.go, generalised
@@ -569,6 +615,10 @@ func (m *Model) renderEntry(e *Entry, width int, focused bool) string {
 	case e.Block != nil:
 		if sf, ok := e.Block.(SelfFramed); ok && sf.SelfFramed() {
 			inner := max(1, width-theme.MarkerColumnWidth)
+			if m.neutralWorkspace {
+				body := e.Block.View(max(1, width-2), focused)
+				return theme.WorkspaceSurface(body, width, len(strings.Split(body, "\n")), focused)
+			}
 			return theme.ReserveMarkerColumn(e.Block.View(inner, focused))
 		}
 		role := theme.RoleBlock
@@ -587,14 +637,14 @@ func (m *Model) renderEntry(e *Entry, width int, focused bool) string {
 			header = t.Title()
 		}
 		body := e.Block.View(theme.InnerWidth(width), focused)
-		return theme.Card(role, header, body, width, focused)
+		return m.card(role, header, body, width, focused)
 	case e.Role == RoleUser:
-		return theme.Card(theme.RoleUser, theme.HeaderFor(theme.RoleUser), e.Text, width, focused)
+		return m.card(theme.RoleUser, theme.HeaderFor(theme.RoleUser), e.Text, width, focused)
 	case e.Markdown && m.markdownRenderer != nil:
 		body := m.markdownRenderer(e.Text, theme.InnerWidth(width))
-		return theme.Card(theme.RoleAssistant, theme.HeaderFor(theme.RoleAssistant), body, width, focused)
+		return m.card(theme.RoleAssistant, theme.HeaderFor(theme.RoleAssistant), body, width, focused)
 	case e.Role == RoleAssistant:
-		return theme.Card(theme.RoleAssistant, theme.HeaderFor(theme.RoleAssistant), e.Text, width, focused)
+		return m.card(theme.RoleAssistant, theme.HeaderFor(theme.RoleAssistant), e.Text, width, focused)
 	default:
 		// RoleSystem, including an "error: ..." message (AppendSystem is
 		// how chatshell reports both a plain status note and a stream/
@@ -606,7 +656,7 @@ func (m *Model) renderEntry(e *Entry, width int, focused bool) string {
 		if strings.HasPrefix(e.Text, "error:") {
 			role = theme.RoleError
 		}
-		return theme.Card(role, theme.HeaderFor(role), e.Text, width, focused)
+		return m.card(role, theme.HeaderFor(role), e.Text, width, focused)
 	}
 }
 

@@ -2,6 +2,7 @@ package grid
 
 import (
 	"charm.land/lipgloss/v2"
+	"fmt"
 
 	"github.com/tuigoff/tuigoff/pkg/widgets"
 )
@@ -137,3 +138,62 @@ func (m *Model) AtEdge(dir widgets.Direction) bool {
 // Editing implements widgets.Editor: true while the grid's filter input is
 // focused and owns a text cursor.
 func (m *Model) Editing() bool { return m.table.GetIsFilterInputFocused() }
+
+// SetWorkspaceStyle enables borderless grid rendering and neutral selection.
+// It also opts printable input into search (overriding WithFilterDisabled while
+// enabled), retaining rows, sorting, selection and scroll. Lazy RowSource grids
+// cannot search locally and ignore printable input rather than invoking actions.
+// Disabling restores the pre-workspace frame and filter-on-type options;
+// repeated enable/disable calls do not replace those configured defaults.
+func (m *Model) SetWorkspaceStyle(enabled bool) {
+	if enabled == m.neutralSelection {
+		return
+	}
+	if enabled {
+		m.workspaceFrameless, m.workspaceFilterOnType = m.frameless, m.filterOnType
+	} else {
+		m.frameless, m.filterOnType = m.workspaceFrameless, m.workspaceFilterOnType
+	}
+	m.neutralSelection = enabled
+	if enabled {
+		m.frameless, m.filterOnType = true, true
+	}
+	m.rebuildTable()
+}
+
+// ReorderRows applies a complete key permutation to a loaded grid while
+// retaining its filter, search focus and horizontal viewport. A changed row
+// set must be captured again; missing or duplicate keys never partially apply.
+func (m *Model) ReorderRows(keys []string) error {
+	if m.src != nil || len(keys) != len(m.rows) {
+		return fmt.Errorf("row order does not match the loaded snapshot")
+	}
+	byKey := make(map[string]Row, len(m.rows))
+	for _, row := range m.rows {
+		if _, exists := byKey[row.Key]; exists {
+			return fmt.Errorf("loaded row keys are not unique")
+		}
+		byKey[row.Key] = row
+	}
+	rows := make([]Row, len(keys))
+	for i, key := range keys {
+		row, ok := byKey[key]
+		if !ok {
+			return fmt.Errorf("row order contains an unknown or repeated key")
+		}
+		rows[i] = row
+		delete(byKey, key)
+	}
+	current := ""
+	if row, ok := m.CurrentRow(); ok {
+		current = row.Key
+	}
+	m.rows = rows
+	m.cells = formatRows(m.columns, m.rows)
+	m.sortColumn, m.sortDesc = -1, false
+	m.rebuildTable()
+	if i := m.IndexForKey(current); i >= 0 {
+		m.SelectRow(i)
+	}
+	return nil
+}

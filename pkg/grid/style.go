@@ -139,6 +139,12 @@ func selectedCellStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Bold(true).Foreground(theme.AccentColor())
 }
 
+// A pale gold foreground and underline remain distinct from product PK gold.
+// This opt-in workspace cue never introduces another blue focus marker.
+func workspaceColumnStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Bold(true).Underline(true).Foreground(lipgloss.Color("#ffef80"))
+}
+
 // columnStyle mirrors DataTug's gridColumnStyle: numeric columns align
 // right, the selected column is bold/highlighted.
 func columnStyle(col Column, selected bool) lipgloss.Style {
