@@ -120,7 +120,7 @@ func WorkspaceTopBar(width int, title, context string, right []MenuItem) string 
 func WorkspacePanelHeader(title, hint string) string {
 	text := lipgloss.NewStyle().Bold(true).Foreground(MutedColor()).Render(title)
 	if hint != "" {
-		text += " " + lipgloss.NewStyle().Foreground(MutedColor()).Faint(true).Render(hint)
+		text += " " + WorkspaceKeyHint(hint)
 	}
 	return text
 }
