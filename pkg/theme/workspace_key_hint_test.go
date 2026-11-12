@@ -13,6 +13,7 @@ import (
 func TestWorkspaceKeyHintHasNoFaintAttribute(t *testing.T) {
 	sgr := regexp.MustCompile("\x1b\\[([0-9;]*)m")
 	trueColor := regexp.MustCompile(`[34]8;2;\d+;\d+;\d+|[34]8;5;\d+`)
+	defer SetDark(Dark)
 	for _, dark := range []bool{true, false} {
 		SetDark(dark)
 		hint := WorkspaceKeyHint("F3")
