@@ -23,9 +23,11 @@ type WorkspaceChrome struct {
 	Actions []WorkspaceChromeAction
 }
 
-// WorkspaceKeyHint keeps shortcuts visually separate from their labels.
+// WorkspaceKeyHint keeps shortcuts visually separate from their labels. The
+// colour alone carries the dimming: terminals that honour SGR faint, Windows
+// Terminal among them, halve an already dim colour until the key is unreadable.
 func WorkspaceKeyHint(key string) string {
-	return lipgloss.NewStyle().Foreground(WorkspaceHintColor()).Faint(true).Render(key)
+	return lipgloss.NewStyle().Foreground(WorkspaceHintColor()).Render(key)
 }
 
 // WorkspaceHintColor remains visibly dimmer than labels without relying on terminal faint support.
